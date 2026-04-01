@@ -1,0 +1,1327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Royal Court Piano</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;600;700&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     CSS VARIABLES & RESET
+  ============================================================ */
+  :root {
+    --gold:        #c9933a;
+    --gold-light:  #f0c96a;
+    --gold-dark:   #7a560f;
+    --parchment:   #e8dcc0;
+    --parchment-dark: #c9b88a;
+    --burgundy:    #6b1a2a;
+    --burgundy-light: #9e2a3f;
+    --brown-dark:  #1a0e05;
+    --brown-mid:   #2e1a0a;
+    --brown-light: #4a2e12;
+    --stone:       #2a2520;
+    --stone-light: #3d3530;
+    --key-white-bg: linear-gradient(180deg, #d9c99a 0%, #c4b07a 60%, #b09a60 100%);
+    --key-black-bg: linear-gradient(180deg, #1a1008 0%, #0d0804 100%);
+    --shadow-deep: 0 8px 32px rgba(0,0,0,0.7);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background-color: var(--brown-dark);
+    background-image:
+      radial-gradient(ellipse 80% 60% at 50% -10%, rgba(100,60,10,0.45) 0%, transparent 70%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23n)' opacity='0.07'/%3E%3C/svg%3E");
+    min-height: 100vh;
+    font-family: 'Cinzel', serif;
+    color: var(--parchment);
+    overflow-x: hidden;
+  }
+
+  /* ============================================================
+     FLICKERING CANDLES (CSS ONLY)
+  ============================================================ */
+  .candles-container {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    pointer-events: none;
+    z-index: 0;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 3vw;
+  }
+
+  .candle {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .flame-wrap {
+    position: relative;
+    width: 24px;
+    height: 40px;
+    margin-top: 6px;
+  }
+
+  .flame {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 14px;
+    height: 28px;
+    border-radius: 50% 50% 20% 20%;
+    background: radial-gradient(ellipse at 50% 80%, #fff 0%, #ffe066 25%, #ff9a00 55%, #c44 90%);
+    filter: blur(1px);
+    animation: flicker 1.8s ease-in-out infinite alternate;
+    transform-origin: bottom center;
+  }
+
+  .flame::after {
+    content: '';
+    position: absolute;
+    bottom: -3px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,180,30,0.45) 0%, transparent 80%);
+    animation: glow-pulse 1.8s ease-in-out infinite alternate;
+    filter: blur(4px);
+  }
+
+  .flame-glow {
+    position: absolute;
+    bottom: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,150,20,0.22) 0%, transparent 75%);
+    animation: flicker 2.2s ease-in-out infinite alternate-reverse;
+    filter: blur(6px);
+  }
+
+  .candle-body {
+    width: 18px;
+    background: linear-gradient(90deg, #e8dcc0 30%, #c9b88a 100%);
+    border-radius: 3px 3px 1px 1px;
+    box-shadow: inset -3px 0 6px rgba(0,0,0,0.2);
+  }
+  .candle.tall  .candle-body { height: 80px; }
+  .candle.mid   .candle-body { height: 55px; }
+  .candle.short .candle-body { height: 38px; }
+
+  .candle-base {
+    width: 24px;
+    height: 10px;
+    background: linear-gradient(180deg, var(--gold-dark) 0%, #3a2000 100%);
+    border-radius: 2px;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.6);
+  }
+
+  @keyframes flicker {
+    0%   { transform: translateX(-50%) scaleY(1)    scaleX(1)    skewX(0deg);   opacity: 1; }
+    30%  { transform: translateX(-50%) scaleY(1.05) scaleX(0.92) skewX(-2deg);  opacity: 0.95; }
+    60%  { transform: translateX(-50%) scaleY(0.95) scaleX(1.06) skewX(2deg);   opacity: 1; }
+    100% { transform: translateX(-50%) scaleY(1.08) scaleX(0.96) skewX(-1deg);  opacity: 0.92; }
+  }
+
+  @keyframes glow-pulse {
+    0%   { opacity: 0.6; transform: translateX(-50%) scale(1); }
+    100% { opacity: 1;   transform: translateX(-50%) scale(1.2); }
+  }
+
+  /* ============================================================
+     AMBIENT LIGHT OVERLAY
+  ============================================================ */
+  .ambient-overlay {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    background:
+      radial-gradient(ellipse 35% 50% at 8%  5%, rgba(255,140,20,0.10) 0%, transparent 70%),
+      radial-gradient(ellipse 35% 50% at 92% 5%, rgba(255,140,20,0.10) 0%, transparent 70%),
+      radial-gradient(ellipse 60% 40% at 50% 0%,  rgba(255,160,40,0.06) 0%, transparent 60%);
+  }
+
+  /* ============================================================
+     MAIN LAYOUT
+  ============================================================ */
+  .page-wrapper {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px 10px 40px;
+  }
+
+  /* ============================================================
+     HEADER / BANNER
+  ============================================================ */
+  .banner {
+    width: 100%;
+    max-width: 960px;
+    text-align: center;
+    padding: 28px 30px 18px;
+    position: relative;
+  }
+
+  .banner::before, .banner::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--gold), var(--gold-light), var(--gold), transparent);
+  }
+  .banner::before { top: 0; }
+  .banner::after  { bottom: 0; }
+
+  .crown-icon {
+    font-size: 2rem;
+    display: block;
+    margin-bottom: 4px;
+    animation: crown-glow 3s ease-in-out infinite alternate;
+  }
+
+  @keyframes crown-glow {
+    from { filter: drop-shadow(0 0 6px rgba(201,147,58,0.6)); }
+    to   { filter: drop-shadow(0 0 18px rgba(240,201,106,0.95)); }
+  }
+
+  .banner h1 {
+    font-family: 'Cinzel Decorative', cursive;
+    font-size: clamp(1.4rem, 4vw, 2.6rem);
+    font-weight: 900;
+    color: var(--gold-light);
+    text-shadow:
+      0 0 20px rgba(240,201,106,0.5),
+      0 2px 4px rgba(0,0,0,0.8),
+      0 0 60px rgba(201,147,58,0.2);
+    letter-spacing: 0.06em;
+    line-height: 1.2;
+    margin-bottom: 4px;
+  }
+
+  .banner .subtitle {
+    font-family: 'IM Fell English', serif;
+    font-style: italic;
+    font-size: clamp(0.8rem, 1.8vw, 1rem);
+    color: var(--parchment-dark);
+    letter-spacing: 0.12em;
+    opacity: 0.85;
+  }
+
+  .divider-ornament {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin: 14px 0 10px;
+    color: var(--gold);
+    font-size: 1.1rem;
+    opacity: 0.7;
+  }
+  .divider-ornament::before,
+  .divider-ornament::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    max-width: 160px;
+    background: linear-gradient(90deg, transparent, var(--gold-dark));
+  }
+  .divider-ornament::after {
+    background: linear-gradient(90deg, var(--gold-dark), transparent);
+  }
+
+  /* ============================================================
+     CONTROLS PANEL
+  ============================================================ */
+  .controls-panel {
+    width: 100%;
+    max-width: 960px;
+    background: linear-gradient(180deg, rgba(46,26,10,0.95) 0%, rgba(26,14,5,0.98) 100%);
+    border: 1px solid var(--gold-dark);
+    border-radius: 4px;
+    box-shadow:
+      inset 0 1px 0 rgba(201,147,58,0.3),
+      inset 0 -1px 0 rgba(0,0,0,0.5),
+      var(--shadow-deep);
+    padding: 14px 24px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 10px;
+    position: relative;
+  }
+
+  .controls-panel::before {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border: 1px solid rgba(201,147,58,0.12);
+    border-radius: 2px;
+    pointer-events: none;
+  }
+
+  .control-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .control-label {
+    font-family: 'Cinzel', serif;
+    font-size: 0.68rem;
+    letter-spacing: 0.15em;
+    color: var(--gold-dark);
+    text-transform: uppercase;
+  }
+
+  /* Buttons */
+  .regal-btn {
+    font-family: 'Cinzel', serif;
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    color: var(--parchment);
+    background: linear-gradient(180deg, var(--brown-light) 0%, var(--brown-mid) 100%);
+    border: 1px solid var(--gold-dark);
+    border-radius: 3px;
+    padding: 6px 14px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4), inset 0 1px 0 rgba(201,147,58,0.2);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .regal-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(201,147,58,0.15) 0%, transparent 50%);
+    pointer-events: none;
+  }
+
+  .regal-btn:hover {
+    background: linear-gradient(180deg, var(--brown-mid) 0%, var(--brown-dark) 100%);
+    border-color: var(--gold);
+    color: var(--gold-light);
+    box-shadow: 0 0 12px rgba(201,147,58,0.3), 0 2px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(201,147,58,0.3);
+  }
+
+  .regal-btn:active, .regal-btn.active {
+    background: linear-gradient(180deg, var(--burgundy) 0%, var(--burgundy-light) 100%);
+    border-color: var(--gold-light);
+    color: var(--gold-light);
+    transform: translateY(1px);
+  }
+
+  .regal-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  /* Octave display */
+  .octave-display {
+    font-family: 'Cinzel Decorative', cursive;
+    font-size: 1rem;
+    color: var(--gold-light);
+    min-width: 28px;
+    text-align: center;
+    text-shadow: 0 0 10px rgba(240,201,106,0.6);
+  }
+
+  /* Volume slider */
+  input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100px;
+    height: 6px;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--gold-dark), var(--gold));
+    outline: none;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--gold-light) 0%, var(--gold) 100%);
+    border: 1px solid var(--gold-dark);
+    box-shadow: 0 0 6px rgba(201,147,58,0.5);
+    transition: box-shadow 0.15s;
+  }
+  input[type=range]::-webkit-slider-thumb:hover {
+    box-shadow: 0 0 12px rgba(240,201,106,0.8);
+  }
+
+  /* Recording indicator */
+  .rec-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #888;
+    transition: background 0.2s, box-shadow 0.2s;
+    flex-shrink: 0;
+  }
+  .rec-dot.recording {
+    background: #e63030;
+    box-shadow: 0 0 8px #e63030;
+    animation: rec-pulse 1s ease-in-out infinite;
+  }
+  @keyframes rec-pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
+  }
+
+  /* Status message */
+  .status-msg {
+    font-family: 'IM Fell English', serif;
+    font-style: italic;
+    font-size: 0.78rem;
+    color: var(--gold);
+    opacity: 0;
+    transition: opacity 0.3s;
+    min-height: 1em;
+  }
+  .status-msg.visible { opacity: 1; }
+
+  /* ============================================================
+     PIANO STAGE
+  ============================================================ */
+  .piano-stage {
+    width: 100%;
+    max-width: 960px;
+    background: linear-gradient(180deg, #0f0803 0%, #1a0e05 40%, #0f0803 100%);
+    border: 2px solid var(--gold-dark);
+    border-radius: 6px 6px 18px 18px;
+    box-shadow:
+      0 0 60px rgba(201,147,58,0.12),
+      0 0 0 4px #0d0804,
+      0 0 0 6px rgba(201,147,58,0.15),
+      var(--shadow-deep),
+      inset 0 2px 0 rgba(201,147,58,0.2),
+      inset 0 -8px 20px rgba(0,0,0,0.6);
+    padding: 18px 14px 24px;
+    position: relative;
+  }
+
+  .piano-stage::before {
+    content: '';
+    position: absolute;
+    top: 4px; left: 4px; right: 4px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(201,147,58,0.4), transparent);
+    pointer-events: none;
+  }
+
+  .piano-stage::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background-image: repeating-linear-gradient(
+      92deg,
+      transparent 0px, transparent 18px,
+      rgba(255,255,255,0.012) 18px, rgba(255,255,255,0.012) 19px
+    );
+    pointer-events: none;
+  }
+
+  .stage-label {
+    text-align: center;
+    font-family: 'Cinzel Decorative', cursive;
+    font-size: 0.6rem;
+    letter-spacing: 0.4em;
+    color: rgba(201,147,58,0.35);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  /* ============================================================
+     KEYS CONTAINER
+  ============================================================ */
+  .keys-wrapper {
+    overflow-x: auto;
+    padding-bottom: 8px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--gold-dark) var(--brown-dark);
+  }
+  .keys-wrapper::-webkit-scrollbar { height: 5px; }
+  .keys-wrapper::-webkit-scrollbar-track { background: var(--brown-dark); }
+  .keys-wrapper::-webkit-scrollbar-thumb { background: var(--gold-dark); border-radius: 3px; }
+
+  .keys-row {
+    display: flex;
+    position: relative;
+    height: 190px;
+    width: max-content;
+    margin: 0 auto;
+    filter: drop-shadow(0 10px 30px rgba(0,0,0,0.8));
+  }
+
+  /* ============================================================
+     INDIVIDUAL KEYS
+  ============================================================ */
+  .key {
+    position: relative;
+    cursor: pointer;
+    user-select: none;
+    transition: filter 0.08s ease;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    padding-bottom: 8px;
+    border-radius: 0 0 5px 5px;
+    touch-action: none;
+  }
+
+  /* White key */
+  .key.white {
+    width: 42px;
+    height: 190px;
+    background: var(--key-white-bg);
+    border: 1px solid rgba(0,0,0,0.55);
+    border-top: 2px solid rgba(201,147,58,0.4);
+    box-shadow:
+      inset 1px 0  0 rgba(255,255,255,0.15),
+      inset -1px 0 0 rgba(0,0,0,0.25),
+      inset 0 -2px 4px rgba(0,0,0,0.3),
+      2px 4px 8px rgba(0,0,0,0.5);
+    z-index: 1;
+    margin-right: 1px;
+  }
+
+  .key.white::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: repeating-linear-gradient(
+      180deg,
+      transparent 0, transparent 22px,
+      rgba(0,0,0,0.04) 22px, rgba(0,0,0,0.04) 23px
+    );
+    border-radius: inherit;
+    pointer-events: none;
+  }
+
+  .key.white:hover {
+    background: linear-gradient(180deg, #e8d8a8 0%, #d4be88 60%, #c0a870 100%);
+    filter: brightness(1.06);
+  }
+
+  .key.white.active {
+    background: linear-gradient(180deg, #f5e8b0 0%, #e8ce80 50%, #d4b860 100%);
+    box-shadow:
+      inset 0 4px 12px rgba(201,147,58,0.45),
+      inset 1px 0  0 rgba(255,255,255,0.2),
+      0 0 20px rgba(201,147,58,0.4),
+      1px 2px 5px rgba(0,0,0,0.4);
+    filter: brightness(1.1);
+    transform: translateY(2px);
+  }
+
+  /* Black key */
+  .key.black {
+    width: 26px;
+    height: 118px;
+    background: var(--key-black-bg);
+    border: 1px solid rgba(201,147,58,0.2);
+    border-top: 2px solid rgba(201,147,58,0.35);
+    border-radius: 0 0 4px 4px;
+    box-shadow:
+      inset 1px 0 0 rgba(255,255,255,0.07),
+      inset -1px 0 0 rgba(0,0,0,0.6),
+      inset 0 -2px 3px rgba(0,0,0,0.5),
+      3px 6px 14px rgba(0,0,0,0.75),
+      0 0 0 0.5px rgba(201,147,58,0.15);
+    position: absolute;
+    z-index: 2;
+    top: 0;
+  }
+
+  .key.black::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    left: 3px; right: 3px;
+    height: 30%;
+    background: linear-gradient(180deg, rgba(255,255,255,0.07) 0%, transparent 100%);
+    border-radius: 1px;
+    pointer-events: none;
+  }
+
+  .key.black:hover {
+    background: linear-gradient(180deg, #2e1c0c 0%, #150e04 100%);
+    filter: brightness(1.2);
+  }
+
+  .key.black.active {
+    background: linear-gradient(180deg, #5a3010 0%, #3a1a05 100%);
+    box-shadow:
+      inset 0 3px 8px rgba(201,147,58,0.35),
+      0 0 18px rgba(201,147,58,0.45),
+      2px 4px 8px rgba(0,0,0,0.7);
+    filter: brightness(1.3);
+    transform: translateY(2px);
+  }
+
+  /* Key labels */
+  .key-note {
+    font-family: 'Cinzel', serif;
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    pointer-events: none;
+    line-height: 1;
+    margin-bottom: 2px;
+  }
+  .key.white .key-note { color: rgba(60, 35, 5, 0.75); }
+  .key.black .key-note { color: rgba(201,147,58,0.7); font-size: 0.5rem; }
+
+  .key-kbd {
+    font-family: 'Cinzel', serif;
+    font-size: 0.62rem;
+    font-weight: 600;
+    pointer-events: none;
+    line-height: 1;
+  }
+  .key.white .key-kbd {
+    color: rgba(100,60,10,0.85);
+    background: rgba(0,0,0,0.08);
+    border-radius: 2px;
+    padding: 1px 3px;
+  }
+  .key.black .key-kbd {
+    color: rgba(201,147,58,0.85);
+    font-size: 0.52rem;
+  }
+
+  /* ============================================================
+     VISUALIZER
+  ============================================================ */
+  .visualizer-row {
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    gap: 3px;
+    height: 40px;
+    margin: 14px 0 6px;
+  }
+
+  .viz-bar {
+    width: 5px;
+    height: 4px;
+    background: linear-gradient(180deg, var(--gold-light), var(--gold));
+    border-radius: 2px 2px 0 0;
+    transition: height 0.07s ease-out;
+    opacity: 0.5;
+  }
+
+  /* ============================================================
+     FOOTER
+  ============================================================ */
+  .scroll-footer {
+    width: 100%;
+    max-width: 840px;
+    margin-top: 20px;
+    padding: 16px 40px;
+    background: linear-gradient(180deg, rgba(30,18,6,0.9) 0%, rgba(20,10,2,0.95) 100%);
+    border: 1px solid rgba(201,147,58,0.25);
+    border-radius: 3px;
+    text-align: center;
+    position: relative;
+  }
+
+  .scroll-footer::before,
+  .scroll-footer::after {
+    content: 'fleuron';
+    font-family: serif;
+    content: '❧';
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 1.4rem;
+    color: var(--gold-dark);
+    opacity: 0.5;
+  }
+  .scroll-footer::before { left: 12px; }
+  .scroll-footer::after  { right: 12px; content: '❦'; }
+
+  .key-guide {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 5px 10px;
+    font-family: 'IM Fell English', serif;
+    font-style: italic;
+    font-size: 0.75rem;
+    color: var(--parchment-dark);
+    opacity: 0.85;
+    line-height: 1.6;
+  }
+
+  .key-guide .guide-title {
+    width: 100%;
+    text-align: center;
+    font-family: 'Cinzel', serif;
+    font-style: normal;
+    font-size: 0.72rem;
+    letter-spacing: 0.2em;
+    color: var(--gold);
+    margin-bottom: 4px;
+  }
+
+  .key-guide strong {
+    font-family: 'Cinzel', serif;
+    font-style: normal;
+    color: var(--gold);
+    font-size: 0.7rem;
+  }
+
+  /* ============================================================
+     TOAST
+  ============================================================ */
+  .toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: linear-gradient(180deg, var(--brown-light) 0%, var(--brown-mid) 100%);
+    border: 1px solid var(--gold-dark);
+    padding: 10px 24px;
+    border-radius: 4px;
+    font-family: 'IM Fell English', serif;
+    font-style: italic;
+    font-size: 0.9rem;
+    color: var(--gold-light);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.6), 0 0 12px rgba(201,147,58,0.2);
+    opacity: 0;
+    transition: opacity 0.3s, transform 0.3s;
+    pointer-events: none;
+    z-index: 100;
+    white-space: nowrap;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* Ambient ring */
+  .ambient-ring {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--gold-dark);
+    border: 1px solid var(--gold);
+    transition: background 0.3s, box-shadow 0.3s;
+    flex-shrink: 0;
+  }
+  .ambient-ring.on {
+    background: var(--gold-light);
+    box-shadow: 0 0 8px var(--gold);
+    animation: ring-pulse 2s ease-in-out infinite;
+  }
+  @keyframes ring-pulse {
+    0%, 100% { box-shadow: 0 0 4px var(--gold); }
+    50%       { box-shadow: 0 0 14px var(--gold-light); }
+  }
+
+  /* ============================================================
+     RESPONSIVE
+  ============================================================ */
+  @media (max-width: 700px) {
+    .candles-container { display: none; }
+    .banner h1 { font-size: 1.2rem; }
+    .key.white { width: 34px; height: 160px; }
+    .key.black { width: 22px; height: 100px; }
+    .keys-row  { height: 160px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- CANDLES -->
+<div class="candles-container" aria-hidden="true">
+  <div class="candle tall">
+    <div class="flame-wrap"><div class="flame"></div><div class="flame-glow"></div></div>
+    <div class="candle-body"></div><div class="candle-base"></div>
+  </div>
+  <div class="candle mid" style="margin-top:20px">
+    <div class="flame-wrap"><div class="flame" style="animation-delay:0.4s"></div><div class="flame-glow" style="animation-delay:0.4s"></div></div>
+    <div class="candle-body"></div><div class="candle-base"></div>
+  </div>
+  <div class="candle short" style="margin-top:40px">
+    <div class="flame-wrap"><div class="flame" style="animation-delay:0.9s"></div><div class="flame-glow" style="animation-delay:0.9s"></div></div>
+    <div class="candle-body"></div><div class="candle-base"></div>
+  </div>
+  <div class="candle mid" style="margin-top:24px">
+    <div class="flame-wrap"><div class="flame" style="animation-delay:1.2s"></div><div class="flame-glow" style="animation-delay:1.2s"></div></div>
+    <div class="candle-body"></div><div class="candle-base"></div>
+  </div>
+  <div class="candle tall">
+    <div class="flame-wrap"><div class="flame" style="animation-delay:0.6s"></div><div class="flame-glow" style="animation-delay:0.6s"></div></div>
+    <div class="candle-body"></div><div class="candle-base"></div>
+  </div>
+</div>
+
+<div class="ambient-overlay" aria-hidden="true"></div>
+
+<div class="page-wrapper">
+
+  <!-- BANNER -->
+  <header class="banner">
+    <span class="crown-icon" aria-hidden="true">♛</span>
+    <h1>The Royal Court Piano</h1>
+    <p class="subtitle">~ Crafted by the Master Luthiers of the Realm ~</p>
+    <div class="divider-ornament" aria-hidden="true">✦</div>
+  </header>
+
+  <!-- CONTROLS -->
+  <div class="controls-panel" role="toolbar" aria-label="Piano controls">
+
+    <div class="control-group">
+      <span class="control-label">Octave</span>
+      <button class="regal-btn" id="octave-down" aria-label="Decrease octave">◂</button>
+      <span class="octave-display" id="octave-display">4</span>
+      <button class="regal-btn" id="octave-up" aria-label="Increase octave">▸</button>
+    </div>
+
+    <div style="width:1px;height:28px;background:rgba(201,147,58,0.2)"></div>
+
+    <div class="control-group">
+      <span class="control-label" aria-hidden="true">⚜ Vol</span>
+      <input type="range" id="volume" min="0" max="1" step="0.02" value="0.75" aria-label="Volume">
+    </div>
+
+    <div style="width:1px;height:28px;background:rgba(201,147,58,0.2)"></div>
+
+    <div class="control-group" style="gap:6px">
+      <div class="rec-dot" id="rec-dot" aria-hidden="true"></div>
+      <button class="regal-btn" id="record-btn">⬤ Record</button>
+      <button class="regal-btn" id="play-btn" disabled>▶ Play</button>
+    </div>
+
+    <div style="width:1px;height:28px;background:rgba(201,147,58,0.2)"></div>
+
+    <div class="control-group">
+      <span class="ambient-ring" id="ambient-ring"></span>
+      <button class="regal-btn" id="ambient-btn">Ambience</button>
+    </div>
+
+  </div>
+
+  <!-- STATUS -->
+  <div style="height:22px;display:flex;align-items:center;margin-bottom:4px">
+    <span class="status-msg" id="status-msg" aria-live="polite"></span>
+  </div>
+
+  <!-- PIANO STAGE -->
+  <main class="piano-stage" aria-label="Piano keyboard">
+    <div class="stage-label" aria-hidden="true">✦ &nbsp; Forged in the Royal Foundry &nbsp; ✦</div>
+
+    <!-- VISUALIZER -->
+    <div class="visualizer-row" id="visualizer" aria-hidden="true"></div>
+
+    <!-- KEYS -->
+    <div class="keys-wrapper" role="region" aria-label="Piano keys">
+      <div class="keys-row" id="keys-row"></div>
+    </div>
+  </main>
+
+  <!-- KEY GUIDE -->
+  <footer class="scroll-footer">
+    <div class="key-guide" id="key-guide"></div>
+  </footer>
+
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast" role="alert" aria-live="assertive"></div>
+
+<!-- ============================================================
+     JAVASCRIPT
+============================================================ -->
+<script>
+/*
+  =========================================================
+  PIANO CONFIGURATION
+  Two octaves mapped to keyboard rows:
+    Lower octave:  A S D F G H J  (natural) + W E T Y U (sharp)
+    Upper octave:  K L ; '        (natural) + O P       (sharp)
+  =========================================================
+*/
+
+// KEY_MAP: { keyboardChar: [noteName, octaveOffset] }
+const KEY_MAP = {
+  'a': ['C',  0], 'w': ['C#', 0], 's': ['D',  0], 'e': ['D#', 0],
+  'd': ['E',  0], 'f': ['F',  0], 't': ['F#', 0], 'g': ['G',  0],
+  'y': ['G#', 0], 'h': ['A',  0], 'u': ['A#', 0], 'j': ['B',  0],
+  'k': ['C',  1], 'o': ['C#', 1], 'l': ['D',  1], 'p': ['D#', 1],
+  ';': ['E',  1],
+};
+
+// Full chromatic scale for building the visual keyboard
+const CHROMATIC = [
+  ['C', false], ['C#', true],  ['D', false], ['D#', true],
+  ['E', false], ['F', false],  ['F#', true], ['G', false],
+  ['G#', true], ['A', false],  ['A#', true], ['B', false],
+];
+
+/*
+  =========================================================
+  STATE
+  =========================================================
+*/
+let audioCtx    = null;
+let masterGain  = null;
+let baseOctave  = 4;
+let volume      = 0.75;
+let isRecording = false;
+let recording   = [];
+let recStart    = 0;
+let ambientOn   = false;
+let ambientNodes = [];
+const activeOscs = {};  // keyId → { oscs, env }
+
+/*
+  =========================================================
+  AUDIO CONTEXT — lazy init on first user gesture
+  =========================================================
+*/
+function getCtx() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = volume;
+    masterGain.connect(audioCtx.destination);
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+/*
+  =========================================================
+  FREQUENCY — A4 = 440 Hz equal temperament
+  =========================================================
+*/
+function noteFreq(note, octave) {
+  const semi = { C:-9,'C#':-8, D:-7,'D#':-6, E:-5, F:-4,'F#':-3, G:-2,'G#':-1, A:0,'A#':1, B:2 };
+  return 440 * Math.pow(2, ((octave - 4) * 12 + semi[note]) / 12);
+}
+
+/*
+  =========================================================
+  PLAY — pipe organ character via additive synthesis + hall reverb
+  =========================================================
+*/
+function playNote(note, octave, keyId) {
+  const ctx = getCtx();
+  const freq = noteFreq(note, octave);
+  const now  = ctx.currentTime;
+
+  if (activeOscs[keyId]) stopNote(keyId);
+
+  // Master envelope for this note
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0, now);
+  env.gain.linearRampToValueAtTime(0.6,  now + 0.012);   // attack
+  env.gain.exponentialRampToValueAtTime(0.32, now + 0.18); // decay
+  // sustain: stays at 0.32 until key released
+
+  // Simple reverb: short delay feedback
+  const delay   = ctx.createDelay(2.0);
+  delay.delayTime.value = 0.28;
+  const fbGain  = ctx.createGain();
+  fbGain.gain.value = 0.16;
+  const revGain = ctx.createGain();
+  revGain.gain.value = 0.20;
+
+  env.connect(revGain);
+  revGain.connect(delay);
+  delay.connect(fbGain);
+  fbGain.connect(delay);
+  delay.connect(masterGain);
+  env.connect(masterGain);
+
+  // Partials for a warm, medieval pipe-organ tone
+  const partials = [
+    { type: 'sine',     ratio: 1,   amp: 0.50 },
+    { type: 'sine',     ratio: 2,   amp: 0.18 },
+    { type: 'sine',     ratio: 3,   amp: 0.09 },
+    { type: 'triangle', ratio: 0.5, amp: 0.08 },
+    { type: 'sine',     ratio: 4,   amp: 0.03 },
+  ];
+
+  const oscs = partials.map(({ type, ratio, amp }) => {
+    const osc = ctx.createOscillator();
+    const g   = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq * ratio, now);
+    g.gain.value = amp;
+    osc.connect(g);
+    g.connect(env);
+    osc.start(now);
+    return osc;
+  });
+
+  activeOscs[keyId] = { oscs, env, delay, fbGain, revGain };
+  exciteVisualizer();
+}
+
+function stopNote(keyId) {
+  const data = activeOscs[keyId];
+  if (!data) return;
+  const ctx = getCtx();
+  const now = ctx.currentTime;
+
+  data.env.gain.cancelScheduledValues(now);
+  data.env.gain.setValueAtTime(data.env.gain.value, now);
+  data.env.gain.exponentialRampToValueAtTime(0.0001, now + 0.55); // release
+
+  data.oscs.forEach(o => { try { o.stop(now + 0.60); } catch(e){} });
+  delete activeOscs[keyId];
+}
+
+/*
+  =========================================================
+  AMBIENT — low hall drone + filtered noise
+  =========================================================
+*/
+function startAmbient() {
+  const ctx = getCtx();
+  const ag  = ctx.createGain();
+  ag.gain.setValueAtTime(0, ctx.currentTime);
+  ag.gain.linearRampToValueAtTime(0.07, ctx.currentTime + 2.5);
+  ag.connect(ctx.destination);
+
+  // Noise buffer (wind/hall)
+  const len  = ctx.sampleRate * 4;
+  const buf  = ctx.createBuffer(1, len, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+  const noise = ctx.createBufferSource();
+  noise.buffer = buf;
+  noise.loop = true;
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'bandpass'; bp.frequency.value = 260; bp.Q.value = 0.25;
+  noise.connect(bp); bp.connect(ag); noise.start();
+
+  // Low drone (A1 + E2)
+  [[55, 0.04], [82, 0.025]].forEach(([freq, gain]) => {
+    const osc = ctx.createOscillator();
+    const g   = ctx.createGain();
+    osc.type = 'sine'; osc.frequency.value = freq;
+    g.gain.value = gain;
+    osc.connect(g); g.connect(ag); osc.start();
+    ambientNodes.push(osc);
+  });
+
+  ambientNodes.push(noise, ag);
+}
+
+function stopAmbient() {
+  const ctx = getCtx();
+  // Find the gain node (last element)
+  const ag = ambientNodes[ambientNodes.length - 1];
+  if (ag && ag.gain) {
+    ag.gain.linearRampToValueAtTime(0, ctx.currentTime + 1.5);
+  }
+  setTimeout(() => {
+    ambientNodes.forEach(n => { try { n.stop ? n.stop() : n.disconnect(); } catch(e){} });
+    ambientNodes = [];
+  }, 1700);
+}
+
+/*
+  =========================================================
+  VISUALIZER
+  =========================================================
+*/
+const VIZ_COUNT = 28;
+const vizTimers = {};
+
+function buildVisualizer() {
+  const row = document.getElementById('visualizer');
+  for (let i = 0; i < VIZ_COUNT; i++) {
+    const b = document.createElement('div');
+    b.className = 'viz-bar';
+    b.id = `vb${i}`;
+    row.appendChild(b);
+  }
+}
+
+function exciteVisualizer() {
+  for (let i = 0; i < 8; i++) {
+    const idx = Math.floor(Math.random() * VIZ_COUNT);
+    const bar = document.getElementById(`vb${idx}`);
+    if (!bar) continue;
+    bar.style.height  = (8 + Math.random() * 28) + 'px';
+    bar.style.opacity = '0.95';
+    clearTimeout(vizTimers[idx]);
+    vizTimers[idx] = setTimeout(() => {
+      bar.style.height  = '4px';
+      bar.style.opacity = '0.45';
+    }, 160 + Math.random() * 320);
+  }
+}
+
+/*
+  =========================================================
+  BUILD PIANO KEYBOARD
+  Two display octaves. Black keys positioned absolutely.
+  =========================================================
+*/
+const WHITE_W = 43; // white key width + margin
+
+function buildPiano() {
+  const container = document.getElementById('keys-row');
+  container.innerHTML = '';
+
+  const DISPLAY_OCTAVES = 2;
+
+  for (let oct = 0; oct < DISPLAY_OCTAVES; oct++) {
+    const absOctave = baseOctave + oct;
+
+    // Build white keys first (they define layout flow)
+    let localWhiteIdx = 0;
+    const whitePosMap = {}; // chrIdx → localWhiteIdx
+
+    CHROMATIC.forEach(([note, isBlack], ci) => {
+      if (!isBlack) { whitePosMap[ci] = localWhiteIdx++; }
+    });
+
+    CHROMATIC.forEach(([note, isBlack], ci) => {
+      const keyId = `${note}${absOctave}`;
+      const kbd   = getKbd(note, oct);
+
+      const el = document.createElement('div');
+      el.className  = `key ${isBlack ? 'black' : 'white'}`;
+      el.dataset.keyId  = keyId;
+      el.dataset.note   = note;
+      el.dataset.octave = absOctave;
+
+      el.innerHTML = `<span class="key-kbd">${kbd}</span><span class="key-note">${note}${absOctave}</span>`;
+
+      if (isBlack) {
+        // Position black key: sit between the white key to the left and right
+        const leftWhite  = whitePosMap[ci - 1] ?? 0;
+        const octWhiteOffset = oct * 7; // 7 whites per octave
+        el.style.left = ((octWhiteOffset + leftWhite) * WHITE_W + WHITE_W - 14) + 'px';
+      }
+
+      // Mouse events
+      el.addEventListener('mousedown',  e => { e.preventDefault(); triggerKey(keyId, note, absOctave); });
+      el.addEventListener('mouseup',    () => releaseKey(keyId));
+      el.addEventListener('mouseleave', () => releaseKey(keyId));
+      // Touch events
+      el.addEventListener('touchstart', e => { e.preventDefault(); triggerKey(keyId, note, absOctave); }, { passive: false });
+      el.addEventListener('touchend',   e => { e.preventDefault(); releaseKey(keyId); });
+
+      container.appendChild(el);
+    });
+  }
+
+  buildKeyGuide();
+}
+
+function getKbd(note, octOffset) {
+  for (const [char, [n, o]] of Object.entries(KEY_MAP)) {
+    if (n === note && o === octOffset) return char.toUpperCase();
+  }
+  return '';
+}
+
+/*
+  =========================================================
+  KEY GUIDE
+  =========================================================
+*/
+function buildKeyGuide() {
+  const guide = document.getElementById('key-guide');
+  guide.innerHTML = '';
+
+  const title = document.createElement('span');
+  title.className = 'guide-title';
+  title.textContent = '⚜  Keyboard Bindings  ⚜';
+  guide.appendChild(title);
+
+  for (const [char, [note, oct]] of Object.entries(KEY_MAP)) {
+    const absOct = baseOctave + oct;
+    const span   = document.createElement('span');
+    span.innerHTML = `<strong>${char.toUpperCase()}</strong>&nbsp;→&nbsp;${note}${absOct}`;
+    guide.appendChild(span);
+  }
+}
+
+/*
+  =========================================================
+  TRIGGER / RELEASE
+  =========================================================
+*/
+function triggerKey(keyId, note, octave) {
+  document.querySelector(`[data-key-id="${keyId}"]`)?.classList.add('active');
+  playNote(note, octave, keyId);
+  if (isRecording) recording.push({ keyId, note, octave, t: performance.now() - recStart, on: true });
+}
+
+function releaseKey(keyId) {
+  document.querySelector(`[data-key-id="${keyId}"]`)?.classList.remove('active');
+  stopNote(keyId);
+  if (isRecording) recording.push({ keyId, t: performance.now() - recStart, on: false });
+}
+
+/*
+  =========================================================
+  KEYBOARD INPUT
+  =========================================================
+*/
+const held = new Set();
+
+document.addEventListener('keydown', e => {
+  if (e.repeat) return;
+  const ch = e.key === ' ' ? ' ' : e.key.toLowerCase();
+  if (!KEY_MAP[ch]) return;
+  e.preventDefault();
+  const [note, octOff] = KEY_MAP[ch];
+  const octave = baseOctave + octOff;
+  const keyId  = `${note}${octave}`;
+  if (held.has(keyId)) return;
+  held.add(keyId);
+  triggerKey(keyId, note, octave);
+});
+
+document.addEventListener('keyup', e => {
+  const ch = e.key === ' ' ? ' ' : e.key.toLowerCase();
+  if (!KEY_MAP[ch]) return;
+  const [note, octOff] = KEY_MAP[ch];
+  const keyId = `${note}${baseOctave + octOff}`;
+  held.delete(keyId);
+  releaseKey(keyId);
+});
+
+/*
+  =========================================================
+  CONTROLS
+  =========================================================
+*/
+
+document.getElementById('volume').addEventListener('input', e => {
+  volume = parseFloat(e.target.value);
+  if (masterGain) masterGain.gain.value = volume;
+});
+
+document.getElementById('octave-down').addEventListener('click', () => {
+  if (baseOctave <= 1) return;
+  baseOctave--;
+  document.getElementById('octave-display').textContent = baseOctave;
+  buildPiano();
+  showToast(`Octave lowered to ${baseOctave}`);
+});
+
+document.getElementById('octave-up').addEventListener('click', () => {
+  if (baseOctave >= 7) return;
+  baseOctave++;
+  document.getElementById('octave-display').textContent = baseOctave;
+  buildPiano();
+  showToast(`Octave raised to ${baseOctave}`);
+});
+
+document.getElementById('record-btn').addEventListener('click', () => {
+  if (!isRecording) {
+    isRecording = true;
+    recording   = [];
+    recStart    = performance.now();
+    document.getElementById('rec-dot').classList.add('recording');
+    document.getElementById('record-btn').textContent = '⬛ Stop';
+    document.getElementById('record-btn').classList.add('active');
+    document.getElementById('play-btn').disabled = true;
+    setStatus('Recording thy melody…');
+  } else {
+    isRecording = false;
+    document.getElementById('rec-dot').classList.remove('recording');
+    document.getElementById('record-btn').textContent = '⬤ Record';
+    document.getElementById('record-btn').classList.remove('active');
+    document.getElementById('play-btn').disabled = recording.length === 0;
+    setStatus(recording.length > 0 ? 'Composition saved. Thou may now play it back.' : 'No notes were recorded.');
+  }
+});
+
+document.getElementById('play-btn').addEventListener('click', () => {
+  if (!recording.length) return;
+  document.getElementById('play-btn').disabled    = true;
+  document.getElementById('record-btn').disabled  = true;
+  setStatus('Playing back thy royal composition…');
+
+  recording.forEach(ev => {
+    setTimeout(() => {
+      if (ev.on) triggerKey(ev.keyId, ev.note, ev.octave);
+      else        releaseKey(ev.keyId);
+    }, ev.t);
+  });
+
+  const total = recording[recording.length - 1].t + 1200;
+  setTimeout(() => {
+    document.getElementById('play-btn').disabled   = false;
+    document.getElementById('record-btn').disabled = false;
+    setStatus('Playback complete. The court applauds!');
+  }, total);
+});
+
+document.getElementById('ambient-btn').addEventListener('click', () => {
+  ambientOn = !ambientOn;
+  document.getElementById('ambient-ring').className = 'ambient-ring' + (ambientOn ? ' on' : '');
+  if (ambientOn) { startAmbient(); setStatus('The hall fills with ancient echoes…'); }
+  else           { stopAmbient();  setStatus('Silence returns to the chamber.'); }
+});
+
+/*
+  =========================================================
+  UI HELPERS
+  =========================================================
+*/
+let statusTO, toastTO;
+
+function setStatus(msg) {
+  const el = document.getElementById('status-msg');
+  el.textContent = msg;
+  el.classList.add('visible');
+  clearTimeout(statusTO);
+  statusTO = setTimeout(() => el.classList.remove('visible'), 3800);
+}
+
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTO);
+  toastTO = setTimeout(() => el.classList.remove('show'), 2400);
+}
+
+/*
+  =========================================================
+  INIT
+  =========================================================
+*/
+buildVisualizer();
+buildPiano();
+setStatus('Press keyboard keys or click/tap the piano to begin thy performance.');
+</script>
+</body>
+</html>
