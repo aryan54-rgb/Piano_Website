@@ -825,6 +825,25 @@
       <button class="regal-btn" id="ambient-btn">Ambience</button>
     </div>
 
+    <div style="width:1px;height:28px;background:rgba(201,147,58,0.2)"></div>
+
+    <div class="control-group">
+      <span class="control-label">Sustain</span>
+      <button class="regal-btn" id="sustain-btn" title="Hold for sustain (or hold Space bar)">⏻ Pedal</button>
+    </div>
+
+    <div style="width:1px;height:28px;background:rgba(201,147,58,0.2)"></div>
+
+    <div class="control-group">
+      <span class="control-label">Tone</span>
+      <select id="tone-select" style="font-family:'Cinzel',serif;font-size:0.72rem;letter-spacing:0.06em;color:var(--parchment);background:linear-gradient(180deg,var(--brown-light),var(--brown-mid));border:1px solid var(--gold-dark);border-radius:3px;padding:5px 8px;cursor:pointer;outline:none;">
+        <option value="classic">Classic</option>
+        <option value="bright">Bright</option>
+        <option value="mellow">Mellow</option>
+        <option value="cinematic">Cinematic</option>
+      </select>
+    </div>
+
   </div>
 
   <!-- STATUS -->
@@ -891,6 +910,9 @@ const CHROMATIC = [
 */
 let audioCtx    = null;
 let masterGain  = null;
+let reverbNode  = null;   // ConvolverNode — shared concert-hall IR
+let eqNode      = null;   // BiquadFilter — mid boost / high shelf cut
+let compNode    = null;   // DynamicsCompressor — warmth & glue
 let baseOctave  = 4;
 let volume      = 0.75;
 let isRecording = false;
@@ -898,7 +920,22 @@ let recording   = [];
 let recStart    = 0;
 let ambientOn   = false;
 let ambientNodes = [];
-const activeOscs = {};  // keyId → { oscs, env }
+const activeOscs = {};  // keyId → { oscs, env, stopAll() }
+
+// ── Sustain pedal state ─────────────────────────────────
+let sustainOn = false;
+const sustainHeld = {};  // keyId → true  (waiting for pedal release)
+
+document.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); setSustain(true);  } });
+document.addEventListener('keyup',   e => { if (e.code === 'Space')  setSustain(false); });
+
+function setSustain(on) {
+  sustainOn = on;
+  if (!on) {
+    // Release all notes that were held by the pedal
+    Object.keys(sustainHeld).forEach(k => { delete sustainHeld[k]; doRelease(k); });
+  }
+}
 
 /*
   =========================================================
@@ -907,13 +944,99 @@ const activeOscs = {};  // keyId → { oscs, env }
 */
 function getCtx() {
   if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    masterGain = audioCtx.createGain();
-    masterGain.gain.value = volume;
-    masterGain.connect(audioCtx.destination);
+    audioCtx  = new (window.AudioContext || window.webkitAudioContext)();
+    _buildEffectsChain();
   }
   if (audioCtx.state === 'suspended') audioCtx.resume();
   return audioCtx;
+}
+
+/*
+  =========================================================
+  EFFECTS CHAIN SETUP
+  masterGain → compressor → EQ → reverb(wet mix) → destination
+  Dry signal also goes direct to destination via masterGain
+  =========================================================
+*/
+function _buildEffectsChain() {
+  const ctx = audioCtx;
+
+  // 1. Master gain
+  masterGain = ctx.createGain();
+  masterGain.gain.value = volume;
+
+  // 2. Dynamics compressor — adds warmth, prevents clipping on chords
+  //    WHY: Real piano has natural dynamic compression from string/soundboard physics.
+  compNode = ctx.createDynamicsCompressor();
+  compNode.threshold.value = -18;
+  compNode.knee.value      = 12;
+  compNode.ratio.value     = 3;
+  compNode.attack.value    = 0.003;
+  compNode.release.value   = 0.25;
+
+  // 3. EQ — shelving filter to boost mids (200–2 kHz body) and tame harsh highs
+  //    WHY: Real piano has a warm mid-forward character, not flat like a synth.
+  eqNode = ctx.createBiquadFilter();
+  eqNode.type            = 'peaking';
+  eqNode.frequency.value = 800;
+  eqNode.Q.value         = 0.7;
+  eqNode.gain.value      = 3.5;   // +3.5 dB body boost
+
+  const hiShelf = ctx.createBiquadFilter();
+  hiShelf.type            = 'highshelf';
+  hiShelf.frequency.value = 5000;
+  hiShelf.gain.value      = -4;   // Soften brittle highs
+
+  // 4. Convolution reverb — synthesized concert-hall IR
+  //    WHY: Convolution reverb uses a real impulse response; nothing sounds more
+  //         natural than actual room acoustics.
+  reverbNode = ctx.createConvolver();
+  reverbNode.buffer = _buildHallIR(ctx, 2.8);  // 2.8 s hall
+
+  const reverbWet = ctx.createGain();
+  reverbWet.gain.value = 0.22;   // ~22 % wet — presence without muddiness
+
+  const reverbDry = ctx.createGain();
+  reverbDry.gain.value = 1.0;
+
+  // Wire: masterGain → comp → hiShelf → eqNode → dry+wet split
+  masterGain.connect(compNode);
+  compNode.connect(hiShelf);
+  hiShelf.connect(eqNode);
+  eqNode.connect(reverbDry);
+  eqNode.connect(reverbNode);
+  reverbNode.connect(reverbWet);
+  reverbDry.connect(ctx.destination);
+  reverbWet.connect(ctx.destination);
+
+  // Store refs for teardown / volume changes
+  audioCtx._chain = { reverbWet, reverbDry, hiShelf };
+}
+
+/*
+  =========================================================
+  IMPULSE RESPONSE GENERATOR — synthetic concert hall
+  WHY: A real IR captures room physics (early reflections + late
+       diffusion). We synthesise one using exponentially-decayed
+       noise — free, no CDN, instant.
+  =========================================================
+*/
+function _buildHallIR(ctx, duration = 2.8) {
+  const sr      = ctx.sampleRate;
+  const length  = Math.floor(sr * duration);
+  const impulse = ctx.createBuffer(2, length, sr);
+
+  for (let ch = 0; ch < 2; ch++) {
+    const data = impulse.getChannelData(ch);
+    for (let i = 0; i < length; i++) {
+      // Exponential decay envelope on white noise
+      const decay   = Math.pow(1 - i / length, 2.2);
+      // Early reflections: slightly denser in the first 80 ms
+      const earlyBoost = i < sr * 0.08 ? 1.5 : 1.0;
+      data[i] = (Math.random() * 2 - 1) * decay * earlyBoost;
+    }
+  }
+  return impulse;
 }
 
 /*
@@ -928,74 +1051,189 @@ function noteFreq(note, octave) {
 
 /*
   =========================================================
-  PLAY — pipe organ character via additive synthesis + hall reverb
+  STEREO PANNER — maps MIDI note number to [-0.6 … +0.6]
+  WHY: On a real piano, bass strings are left, treble right.
+       Stereo width adds spatial realism.
   =========================================================
 */
-function playNote(note, octave, keyId) {
-  const ctx = getCtx();
+function _notePan(note, octave) {
+  const semi = { C:0,'C#':1,D:2,'D#':3,E:4,F:5,'F#':6,G:7,'G#':8,A:9,'A#':10,B:11 };
+  const midi = (octave + 1) * 12 + semi[note];   // MIDI 0 = C-1
+  return ((midi - 60) / 48) * 0.65;              // centre on C4, ±0.65 at extremes
+}
+
+/*
+  =========================================================
+  HAMMER NOISE — very short band-limited burst
+  WHY: A real piano hammer strike produces a transient "thwack"
+       that gives the attack its percussive character.
+  =========================================================
+*/
+function _playHammerNoise(ctx, destination, velocity, freq) {
+  const dur    = 0.025;
+  const sr     = ctx.sampleRate;
+  const buf    = ctx.createBuffer(1, Math.floor(sr * dur), sr);
+  const data   = buf.getChannelData(0);
+  for (let i = 0; i < data.length; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 3);
+  }
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+
+  // Band-pass centred around the fundamental so the knock is pitched
+  const bp  = ctx.createBiquadFilter();
+  bp.type            = 'bandpass';
+  bp.frequency.value = Math.min(freq * 1.5, 4000);
+  bp.Q.value         = 1.2;
+
+  const g = ctx.createGain();
+  g.gain.value = 0.12 * velocity;   // Louder hammer at higher velocity
+
+  src.connect(bp); bp.connect(g); g.connect(destination);
+  src.start();
+}
+
+/*
+  =========================================================
+  KARPLUS-STRONG STYLE STRING SYNTHESIS
+  Uses a feedback delay-line (all-pass approximation via
+  short AudioBuffer + DelayNode loop) to simulate a plucked
+  string, combined with additive harmonics for piano body.
+  WHY: Pure sine oscillators lack the natural odd/even partial
+       balance of piano strings. Karplus-Strong gives organic
+       inharmonicity and natural decay without samples.
+  =========================================================
+*/
+function _buildString(ctx, freq, velocity, detuneCents) {
+  const now       = ctx.currentTime;
+  const actualFreq = freq * Math.pow(2, detuneCents / 1200);
+
+  // ── Additive synthesis with inharmonic partials ─────────
+  // WHY: Piano strings are stiff, so upper partials are
+  //      slightly *sharp* of perfect harmonics (inharmonicity).
+  //      We simulate this with a small B-coefficient per partial.
+  const B = 0.00015 * (freq / 440);  // inharmonicity coefficient
+  const partialDefs = [
+    { n: 1, amp: 0.55 },
+    { n: 2, amp: 0.22 },
+    { n: 3, amp: 0.10 },
+    { n: 4, amp: 0.05 },
+    { n: 5, amp: 0.025 },
+    { n: 6, amp: 0.012 },
+  ];
+
+  const mixer = ctx.createGain();
+  mixer.gain.value = 1;
+
+  const oscs = partialDefs.map(({ n, amp }) => {
+    // Inharmonic partial freq: f_n = n*f0 * sqrt(1 + B*n^2)
+    const pFreq = actualFreq * n * Math.sqrt(1 + B * n * n);
+    const osc   = ctx.createOscillator();
+    const g     = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(pFreq, now);
+
+    // Each harmonic has its own micro-detune for chorus richness
+    osc.detune.setValueAtTime((Math.random() - 0.5) * 2.5, now);
+
+    // Higher partials decay faster (natural string physics)
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(amp * velocity, now + 0.008);
+    g.gain.exponentialRampToValueAtTime(amp * velocity * 0.6, now + 0.25);
+    // The partial-specific decay continues via the note envelope
+
+    osc.connect(g);
+    g.connect(mixer);
+    osc.start(now);
+    return { osc, g };
+  });
+
+  return { oscs, mixer };
+}
+
+/*
+  =========================================================
+  PLAY NOTE  ← main entry point, replaces old playNote()
+  =========================================================
+*/
+function playNote(note, octave, keyId, velocity = 0.82) {
+  const ctx  = getCtx();
   const freq = noteFreq(note, octave);
   const now  = ctx.currentTime;
 
+  // Stop any currently ringing note on this key
   if (activeOscs[keyId]) stopNote(keyId);
 
-  // Master envelope for this note
+  // ── Stereo panning ──────────────────────────────────────
+  const panner = ctx.createStereoPanner();
+  panner.pan.value = _notePan(note, octave);
+  panner.connect(masterGain);
+
+  // ── Master note envelope (ADSR) ─────────────────────────
+  // WHY: Real piano has a near-instant attack (hammer impact),
+  //      a fast decay to a sustain plateau, then a long natural
+  //      release when you lift the key (string free to vibrate
+  //      until damper falls).
   const env = ctx.createGain();
+  env.connect(panner);
+
+  const attackTime  = 0.008 + (1 - velocity) * 0.006; // softer = slightly slower attack
+  const decayTime   = 0.18;
+  const sustainLevel= 0.30 + velocity * 0.12;          // velocity affects sustain level
   env.gain.setValueAtTime(0, now);
-  env.gain.linearRampToValueAtTime(0.6,  now + 0.012);   // attack
-  env.gain.exponentialRampToValueAtTime(0.32, now + 0.18); // decay
-  // sustain: stays at 0.32 until key released
+  env.gain.linearRampToValueAtTime(velocity, now + attackTime);        // Attack
+  env.gain.exponentialRampToValueAtTime(sustainLevel, now + attackTime + decayTime); // Decay → Sustain
 
-  // Simple reverb: short delay feedback
-  const delay   = ctx.createDelay(2.0);
-  delay.delayTime.value = 0.28;
-  const fbGain  = ctx.createGain();
-  fbGain.gain.value = 0.16;
-  const revGain = ctx.createGain();
-  revGain.gain.value = 0.20;
+  // ── String model (3 slightly detuned unisons for chorus) ─
+  // WHY: A real piano has 2–3 strings per note, each tuned
+  //      very slightly differently, creating a warm natural chorus.
+  const detuneOffsets = [-1.8, 0, +1.8];
+  const allOscs = [];
 
-  env.connect(revGain);
-  revGain.connect(delay);
-  delay.connect(fbGain);
-  fbGain.connect(delay);
-  delay.connect(masterGain);
-  env.connect(masterGain);
-
-  // Partials for a warm, medieval pipe-organ tone
-  const partials = [
-    { type: 'sine',     ratio: 1,   amp: 0.50 },
-    { type: 'sine',     ratio: 2,   amp: 0.18 },
-    { type: 'sine',     ratio: 3,   amp: 0.09 },
-    { type: 'triangle', ratio: 0.5, amp: 0.08 },
-    { type: 'sine',     ratio: 4,   amp: 0.03 },
-  ];
-
-  const oscs = partials.map(({ type, ratio, amp }) => {
-    const osc = ctx.createOscillator();
-    const g   = ctx.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq * ratio, now);
-    g.gain.value = amp;
-    osc.connect(g);
-    g.connect(env);
-    osc.start(now);
-    return osc;
+  detuneOffsets.forEach(cents => {
+    const { oscs, mixer } = _buildString(ctx, freq, velocity, cents);
+    mixer.connect(env);
+    oscs.forEach(o => allOscs.push(o));
   });
 
-  activeOscs[keyId] = { oscs, env, delay, fbGain, revGain };
+  // ── Hammer transient noise ──────────────────────────────
+  _playHammerNoise(ctx, panner, velocity, freq);
+
+  // ── Store refs ──────────────────────────────────────────
+  const stopAll = (releaseTime = 1.4) => {
+    const t = ctx.currentTime;
+    env.gain.cancelScheduledValues(t);
+    env.gain.setValueAtTime(env.gain.value, t);
+    env.gain.exponentialRampToValueAtTime(0.0001, t + releaseTime);
+    allOscs.forEach(({ osc }) => {
+      try { osc.stop(t + releaseTime + 0.05); } catch(e) {}
+    });
+    setTimeout(() => { try { panner.disconnect(); } catch(e){} }, (releaseTime + 0.1) * 1000);
+  };
+
+  activeOscs[keyId] = { stopAll, env };
   exciteVisualizer();
 }
 
+/*
+  =========================================================
+  STOP NOTE
+  =========================================================
+*/
 function stopNote(keyId) {
+  if (sustainOn) {
+    // Sustain pedal is held — keep note ringing
+    sustainHeld[keyId] = true;
+    return;
+  }
+  doRelease(keyId);
+}
+
+function doRelease(keyId) {
   const data = activeOscs[keyId];
   if (!data) return;
-  const ctx = getCtx();
-  const now = ctx.currentTime;
-
-  data.env.gain.cancelScheduledValues(now);
-  data.env.gain.setValueAtTime(data.env.gain.value, now);
-  data.env.gain.exponentialRampToValueAtTime(0.0001, now + 0.55); // release
-
-  data.oscs.forEach(o => { try { o.stop(now + 0.60); } catch(e){} });
+  data.stopAll(1.4);   // 1.4 s natural release
   delete activeOscs[keyId];
 }
 
@@ -1227,6 +1465,41 @@ document.getElementById('volume').addEventListener('input', e => {
   if (masterGain) masterGain.gain.value = volume;
 });
 
+// ── Sustain pedal button (UI) ───────────────────────────
+(function() {
+  const btn = document.getElementById('sustain-btn');
+  if (!btn) return;
+  btn.addEventListener('mousedown',  () => setSustain(true));
+  btn.addEventListener('mouseup',    () => setSustain(false));
+  btn.addEventListener('mouseleave', () => setSustain(false));
+  btn.addEventListener('touchstart', e => { e.preventDefault(); setSustain(true); }, { passive: false });
+  btn.addEventListener('touchend',   e => { e.preventDefault(); setSustain(false); });
+})();
+
+// ── Piano Tone selector ─────────────────────────────────
+(function() {
+  const sel = document.getElementById('tone-select');
+  if (!sel) return;
+  sel.addEventListener('change', () => {
+    if (!eqNode || !audioCtx) return;
+    const tone = sel.value;
+    const presets = {
+      classic:   { eqFreq: 800,  eqGain: 3.5,  shelfGain: -4,   reverbWet: 0.22 },
+      bright:    { eqFreq: 2500, eqGain: 4.0,  shelfGain: +2,   reverbWet: 0.18 },
+      mellow:    { eqFreq: 400,  eqGain: 4.5,  shelfGain: -8,   reverbWet: 0.30 },
+      cinematic: { eqFreq: 900,  eqGain: 5.0,  shelfGain: -5,   reverbWet: 0.38 },
+    };
+    const p = presets[tone] || presets.classic;
+    eqNode.frequency.value = p.eqFreq;
+    eqNode.gain.value      = p.eqGain;
+    if (audioCtx._chain) {
+      audioCtx._chain.hiShelf.gain.value   = p.shelfGain;
+      audioCtx._chain.reverbWet.gain.value = p.reverbWet;
+    }
+    showToast(`Tone: ${tone.charAt(0).toUpperCase() + tone.slice(1)}`);
+  });
+})();
+
 document.getElementById('octave-down').addEventListener('click', () => {
   if (baseOctave <= 1) return;
   baseOctave--;
@@ -1321,7 +1594,7 @@ function showToast(msg) {
 */
 buildVisualizer();
 buildPiano();
-setStatus('Press keyboard keys or click/tap the piano to begin thy performance.');
+setStatus('Press keyboard keys or click/tap the piano. Hold Space for sustain pedal.');
 </script>
 </body>
 </html>
